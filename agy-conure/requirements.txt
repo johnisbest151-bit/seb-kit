@@ -1,9 +1,7 @@
-sherpa-onnx
-pyaudiowpatch
-numpy
 pillow
 mss
 keyboard
 pystray
 pypdf
 python-docx
+numpy
