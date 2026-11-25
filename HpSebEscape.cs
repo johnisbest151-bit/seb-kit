@@ -70,8 +70,12 @@ class Program
 
     static void LaunchConure()
     {
-        string py = @"F:\Python\pythonw.exe";
-        string script = @"C:\Users\Rahul\agy-conure\agy_conure.py";
+        string py = null;
+        string[] pyPaths = { @"F:\Python\pythonw.exe", @"C:\Python312\pythonw.exe", @"C:\Python311\pythonw.exe", @"C:\Python313\pythonw.exe" };
+        foreach (string pp in pyPaths) { if (File.Exists(pp)) { py = pp; break; } }
+        if (py == null) { foreach (string d in Environment.GetEnvironmentVariable("PATH").Split(';')) { string t = Path.Combine(d, "pythonw.exe"); if (File.Exists(t)) { py = t; break; } } }
+        if (py == null) return;
+        string script = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "agy-conure", "agy_conure.py");
         if (!File.Exists(py) || !File.Exists(script)) return;
         // Wait for SebDesktop to exist
         IntPtr hWait = IntPtr.Zero;
@@ -80,7 +84,7 @@ class Program
         Thread.Sleep(2000);
         STARTUPINFO si = new STARTUPINFO(); si.cb = Marshal.SizeOf(si); si.lpDesktop = "SebDesktop";
         PROCESS_INFORMATION pi;
-        CreateProcess(py, "pythonw.exe \"" + script + "\"", IntPtr.Zero, IntPtr.Zero, false, 0x08000000, IntPtr.Zero, @"C:\Users\Rahul\agy-conure", ref si, out pi);
+        CreateProcess(py, "pythonw.exe \"" + script + "\"", IntPtr.Zero, IntPtr.Zero, false, 0x08000000, IntPtr.Zero, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "agy-conure"), ref si, out pi);
         conurePid = pi.dwProcessId;
         conureVisible = true;
     }
@@ -142,7 +146,7 @@ class Program
         while (true) {
             bool c = (GetAsyncKeyState(0x11) & 0x8000) != 0;
             if (c && (GetAsyncKeyState(0x20) & 0x8000) != 0) { WaitRelease(0x11, 0x20); shouldToggle = true; Thread.Sleep(500); }
-            if (c && (GetAsyncKeyState(0x58) & 0x8000) != 0 && onSeb) { WaitRelease(0x11, 0x58); shouldCapture = true; Thread.Sleep(500); }
+            if (c && (GetAsyncKeyState(0x58) & 0x8000) != 0 && onSeb) { WaitRelease(0x11, 0x58); DoCaptureOnSebDesktop(); Thread.Sleep(500); }
             if (c && (GetAsyncKeyState(0x5A) & 0x8000) != 0) { WaitRelease(0x11, 0x5A); ToggleConureVisibility(); Thread.Sleep(500); }
             Thread.Sleep(30);
         }
@@ -174,7 +178,7 @@ class Program
             { if (onSeb) SwitchTo("Default"); if (conurePid != 0) try { Process.GetProcessById(conurePid).Kill(); } catch {} return; }
 
             // conure toggle handled in SebDesktop thread
-            if (shouldCapture) { shouldCapture = false; if (onSeb) DoCaptureOnSebDesktop(); Thread.Sleep(300); }
+            // capture handled in SebDesktop thread
             if (shouldToggle)
             {
                 shouldToggle = false;
@@ -186,5 +190,6 @@ class Program
         }
     }
 }
+
 
 
