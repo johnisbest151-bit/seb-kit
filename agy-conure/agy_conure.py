@@ -846,6 +846,7 @@ class App:
         self.tray = None
         self.notice_timer = None
         self.settings_win = None
+        self.stealth = False
 
         self.root = tk.Tk()
         self.root.withdraw()
@@ -913,7 +914,8 @@ class App:
         b.base_bg = bg
         b.active = False
         b.bind("<Button-1>", lambda e: cmd())
-        b.bind("<Enter>", lambda e: b.configure(bg=C["btn_hover"] if not b.active else C["on"]))
+        b.hover_bg = C["btn_hover"]
+        b.bind("<Enter>", lambda e: b.configure(bg=b.hover_bg if not b.active else C["on"]))
         b.bind("<Leave>", lambda e: b.configure(bg=b.base_bg if not b.active else C["on"]))
         return b
 
@@ -971,6 +973,10 @@ class App:
         self.b_private.pack(side="left", padx=(0, 4))
         self.b_trans = self._btn(bar, "Text", self.toggle_transcript)
         self.b_trans.pack(side="left", padx=(0, 4))
+        self.b_stealth = self._btn(bar, "Stealth", self.toggle_stealth)
+        self.b_stealth.pack(side="left", padx=(0, 4))
+        bar.bind("<ButtonPress-1>", self._drag_start)
+        bar.bind("<B1-Motion>", self._drag_move)
         self.b_clear = self._btn(bar, "Clear", self.clear, "ghost")
         self.b_clear.pack(side="right")
 
@@ -979,6 +985,7 @@ class App:
 
         # footer first (packed at bottom so panels can expand in the middle)
         ft = tk.Frame(self.frame, bg=C["bg"])
+        self.footer = ft
         self.hints = tk.Label(self.frame, text="", bg=C["bg"], fg=C["muted"], font=self._font(7), anchor="w", padx=8, wraplength=520, justify="left")
         self.hints.pack(fill="x", side="bottom")
         ft.pack(fill="x", side="bottom", padx=8, pady=(4, 4))
@@ -989,7 +996,8 @@ class App:
         ent.bind("<Return>", lambda e: self.submit_ask())
         self.ask_entry = ent
         self._placeholder(ent, "Ask anything... 'summarize what they said', 'shorter', 'a STAR story about conflict'")
-        self._btn(ft, "\u27a4", self.submit_ask, "primary").pack(side="right")
+        self.b_send = self._btn(ft, "\u27a4", self.submit_ask, "primary")
+        self.b_send.pack(side="right")
         self._update_hints()
 
         # transcript panel
@@ -1017,6 +1025,7 @@ class App:
         self.apanel = tk.Frame(self.frame, bg=C["panel"], highlightbackground=C["border"], highlightthickness=1)
         hd2 = tk.Frame(self.apanel, bg=C["panel"])
         hd2.pack(fill="x")
+        self.ahead = hd2
         tk.Label(hd2, text="AI answers", bg=C["panel"], fg=C["muted"], font=self._font(8, "bold")).pack(side="left", padx=8, pady=(4, 0))
         self.model_lbl = tk.Label(hd2, text="", bg=C["panel"], fg=C["muted"], font=self._font(8), cursor="hand2")
         self.model_lbl.pack(side="right", padx=8, pady=(4, 0))
@@ -1026,6 +1035,7 @@ class App:
         sb = tk.Scrollbar(self.apanel, command=self.answers.yview, bg=C["panel"], troughcolor=C["panel"], width=8)
         self.answers.configure(yscrollcommand=sb.set)
         sb.pack(side="right", fill="y")
+        self.asb = sb
         self.answers.pack(fill="both", expand=True)
         self._config_answer_tags()
         self._show_empty_state()
@@ -1044,6 +1054,7 @@ class App:
         # frameless (overrideredirect) windows never become the OS foreground window on
         # their own, so keyboard input would keep going to the previous app: fix that.
         self.root.bind_all("<Button-1>", self._on_any_click, add="+")
+        self.root.bind_all("<Escape>", lambda e: self.stealth and self.toggle_stealth(), add="+")
 
     def _on_any_click(self, e):
         try:
@@ -1071,7 +1082,7 @@ class App:
                 ent.configure(fg=C["text"])
 
         def fout(e):
-            if not ent.get():
+            if not ent.get() and not self.stealth:
                 ent.insert(0, ent.ph)
                 ent.configure(fg=C["muted"])
         ent.bind("<FocusIn>", fin)
@@ -1079,21 +1090,25 @@ class App:
 
     def _config_answer_tags(self):
         a = self.answers
-        a.tag_configure("qhead", foreground=C["accent"], font=self._font(9, "bold"), spacing1=10)
-        a.tag_configure("meta", foreground=C["muted"], font=self._font(8))
+        a.tag_configure("qhead", foreground=self._sfg() if self.stealth else C["accent"], font=self._font(9, "bold"), spacing1=10)
+        a.tag_configure("meta", foreground=self._sfg(True) if self.stealth else C["muted"], font=self._font(8))
         a.tag_configure("body", font=self._font(10), spacing1=1)
         a.tag_configure("b", font=self._font(10, "bold"))
         a.tag_configure("h", font=self._font(11, "bold"), spacing1=6)
-        a.tag_configure("code", font=self._font(9, mono=True), background=C["code"], foreground="#c9d1d9", lmargin1=8, lmargin2=8, spacing1=1)
-        a.tag_configure("icode", font=self._font(9, mono=True), background=C["code"], foreground="#e3b341")
+        a.tag_configure("code", font=self._font(9, mono=True), background="#ffffff" if self.stealth else C["code"], foreground=self._sfg() if self.stealth else "#c9d1d9", lmargin1=8, lmargin2=8, spacing1=1)
+        a.tag_configure("icode", font=self._font(9, mono=True), background="#ffffff" if self.stealth else C["code"], foreground=self._sfg() if self.stealth else "#e3b341")
         a.tag_configure("bullet", lmargin1=12, lmargin2=24)
-        a.tag_configure("err", foreground=C["red"])
-        a.tag_configure("empty", foreground=C["muted"], font=self._font(10))
+        a.tag_configure("err", foreground=self._sfg() if self.stealth else C["red"])
+        a.tag_configure("empty", foreground=self._sfg(True) if self.stealth else C["muted"], font=self._font(10))
         a.tag_configure("sep", font=("Segoe UI", 4))
 
     def _show_empty_state(self):
         self.answers.configure(state="normal")
         self.answers.delete("1.0", "end")
+        if self.stealth:  # blank page in stealth mode
+            self.answers.configure(state="disabled")
+            self.answer_blocks.clear()
+            return
         self.answers.insert("end", "Ready. ", ("b", "empty"))
         self.answers.insert("end", "Press Listen to transcribe the call and your mic. The latest message from the other party is answered automatically while Auto is on; earlier messages and previous answers are kept as context.\n\n", "empty")
         self.answers.insert("end", "Brain: Antigravity CLI (agy) \u00b7 model %s" % self.st["llm"]["model"], "meta")
@@ -1104,7 +1119,7 @@ class App:
         self.tpanel.pack_forget()
         self.splitter.pack_forget()
         self.apanel.pack_forget()
-        if self.st["overlay"].get("showTranscript", True):
+        if self.st["overlay"].get("showTranscript", True) and not self.stealth:
             self.tpanel.pack(fill="x", padx=8, pady=(4, 0))
             self.splitter.pack(fill="x", padx=8)
         self.apanel.pack(fill="both", expand=True, padx=8, pady=(0, 4))
@@ -1184,6 +1199,9 @@ class App:
         self.status_dot.configure(fg=color)
 
     def notice(self, text, level="info", ms=5000):
+        if self.stealth:  # no banners in stealth mode
+            log("notice[%s] %s" % (level, text))
+            return
         col = {"info": C["accent"], "warn": C["amber"], "error": C["red"]}.get(level, C["accent"])
         self.notice_lbl.configure(text=text, fg=col)
         self.notice_lbl.pack(fill="x", padx=8, pady=(2, 2), after=self.toolbar)
@@ -1401,7 +1419,7 @@ class App:
             t.insert(blk["mark_e"], "%s \u00b7 %.1f s \u00b7 " % (blk["a"].get("model", ""), (ms or 0) / 1000.0), ("meta",))
             tag = "copy_" + aid
             t.insert(blk["mark_e"], "copy", ("meta", tag))
-            t.tag_configure(tag, foreground=C["accent"], underline=True)
+            t.tag_configure(tag, foreground=self._sfg() if self.stealth else C["accent"], underline=True)
             t.tag_bind(tag, "<Button-1>", lambda e, txt=blk["text"]: self._copy(txt))
             t.tag_bind(tag, "<Enter>", lambda e: t.configure(cursor="hand2"))
             t.tag_bind(tag, "<Leave>", lambda e: t.configure(cursor="arrow"))
@@ -1658,6 +1676,200 @@ class App:
         self.st.save()
         self._set_toggle(self.b_trans, v)
         self._pack_panels()
+
+    # ---------- stealth mode extras (flat scrollbar, edge resize, opacity + text sliders) ----------
+    def _sfg(self, dim=False):
+        """Stealth text colour: light grey (slider 0) .. black (slider 1); dim = secondary text."""
+        g = int(round(217 * (1.0 - getattr(self, "_stealth_text", 1.0))))
+        if dim:
+            g = int(round(g + (217 - g) * 0.47))
+        return "#%02x%02x%02x" % (g, g, g)
+
+    def _stealth_build(self):
+        if getattr(self, "stealth_row", None) is not None:
+            return
+        W = "#ffffff"
+        # borderless scrollbar (the native Windows one cannot be drawn without an outline)
+        self._ssb_frac = (0.0, 1.0)
+        self.ssb = tk.Canvas(self.apanel, width=self.px(6), bg=W, highlightthickness=0, bd=0, relief="flat", cursor="arrow")
+        self.ssb.bind("<Configure>", lambda e: self._ssb_draw())
+        self.ssb.bind("<Button-1>", self._ssb_drag)
+        self.ssb.bind("<B1-Motion>", self._ssb_drag)
+        # sliders: window opacity (left) and text darkness (right)
+        self.stealth_row = tk.Frame(self.frame, bg=W, bd=0, highlightthickness=0)
+        kw = dict(orient="horizontal", showvalue=0, resolution=0.01, length=self.px(90), width=self.px(6), sliderlength=self.px(12),
+                  bg=W, troughcolor="#f0f0f0", activebackground="#e0e0e0", highlightthickness=0, bd=0, relief="flat",
+                  sliderrelief="flat", takefocus=0)
+        self.s_alpha = tk.Scale(self.stealth_row, from_=0.3, to=1.0, **kw)
+        self.s_alpha.set(max(0.3, min(1.0, float(self.root.attributes("-alpha")))))
+        self.s_alpha.configure(command=self._stealth_alpha_set)
+        self.s_alpha.pack(side="left", padx=(0, 10))
+        self.s_text = tk.Scale(self.stealth_row, from_=0.0, to=1.0, **kw)
+        self.s_text.set(getattr(self, "_stealth_text", 1.0))
+        self.s_text.configure(command=self._stealth_text_set)
+        self.s_text.pack(side="left")
+        # invisible resize handles on all 4 edges + 4 corners
+        t, c = self.px(5), self.px(10)
+        self._edge_handles = []
+        for edge, cur, pk in (
+            ("n", "size_ns", dict(x=0, y=0, relwidth=1.0, height=t)),
+            ("s", "size_ns", dict(x=0, rely=1.0, anchor="sw", relwidth=1.0, height=t)),
+            ("w", "size_we", dict(x=0, y=0, relheight=1.0, width=t)),
+            ("e", "size_we", dict(relx=1.0, y=0, anchor="ne", relheight=1.0, width=t)),
+            ("nw", "size_nw_se", dict(x=0, y=0, width=c, height=c)),
+            ("ne", "size_ne_sw", dict(relx=1.0, y=0, anchor="ne", width=c, height=c)),
+            ("sw", "size_ne_sw", dict(x=0, rely=1.0, anchor="sw", width=c, height=c)),
+            ("se", "size_nw_se", dict(relx=1.0, rely=1.0, anchor="se", width=c, height=c)),
+        ):
+            h = tk.Frame(self.root, bg=W, bd=0, highlightthickness=0, cursor=cur)
+            h.bind("<ButtonPress-1>", lambda e, ed=edge: self._edge_start(e, ed))
+            h.bind("<B1-Motion>", self._edge_move)
+            self._edge_handles.append((h, pk))
+
+    def _stealth_enter(self):
+        self._stealth_build()
+        self._stealth_prev_alpha = float(self.root.attributes("-alpha"))
+        self.asb.pack_forget()
+        self.ssb.pack(side="right", fill="y", before=self.answers)
+        self.answers.configure(yscrollcommand=self._ssb_set)
+        self._ssb_set(*self.answers.yview())
+        self.grip.place_forget()
+        self.stealth_row.pack(fill="x", side="bottom", before=self.footer, padx=8, pady=(0, 6))
+        for h, pk in self._edge_handles:
+            h.place(**pk)
+            h.lift()
+        self.root.attributes("-alpha", float(self.s_alpha.get()))
+
+    def _stealth_exit(self):
+        for h, _ in self._edge_handles:
+            h.place_forget()
+        self.stealth_row.pack_forget()
+        self.ssb.pack_forget()
+        self.asb.pack(side="right", fill="y", before=self.answers)
+        self.answers.configure(yscrollcommand=self.asb.set)
+        self.asb.set(*self.answers.yview())
+        self.grip.place(relx=1.0, rely=1.0, anchor="se")
+        self.root.attributes("-alpha", self._stealth_prev_alpha)
+
+    def _stealth_alpha_set(self, v):
+        if self.stealth:
+            self.root.attributes("-alpha", max(0.3, min(1.0, float(v))))
+
+    def _stealth_text_set(self, v):
+        self._stealth_text = max(0.0, min(1.0, float(v)))
+        if not self.stealth:
+            return
+        self.answers.configure(fg=self._sfg())
+        self._config_answer_tags()
+        for tag in self.answers.tag_names():
+            if tag.startswith("copy_"):
+                self.answers.tag_configure(tag, foreground=self._sfg())
+
+    def _ssb_set(self, lo, hi):
+        self._ssb_frac = (float(lo), float(hi))
+        self._ssb_draw()
+
+    def _ssb_draw(self):
+        c = self.ssb
+        lo, hi = self._ssb_frac
+        c.delete("all")
+        if hi - lo >= 0.999:
+            return
+        h, w = c.winfo_height(), c.winfo_width()
+        y0 = lo * h
+        c.create_rectangle(0, y0, w, max(hi * h, y0 + self.px(14)), fill="#e4e4e4", outline="")
+
+    def _ssb_drag(self, e):
+        lo, hi = self._ssb_frac
+        self.answers.yview_moveto(max(0.0, e.y / max(1, self.ssb.winfo_height()) - (hi - lo) / 2))
+
+    def _edge_start(self, e, edge):
+        r = self.root
+        self._ers = (edge, e.x_root, e.y_root, r.winfo_x(), r.winfo_y(), r.winfo_width(), r.winfo_height())
+
+    def _edge_move(self, e):
+        edge, x0, y0, wx, wy, w0, h0 = self._ers
+        dx, dy = e.x_root - x0, e.y_root - y0
+        mw, mh = self.px(380), self.px(320)
+        x, y, w, h = wx, wy, w0, h0
+        if "e" in edge:
+            w = max(mw, w0 + dx)
+        if "s" in edge:
+            h = max(mh, h0 + dy)
+        if "w" in edge:
+            w = max(mw, w0 - dx)
+            x = wx + w0 - w
+        if "n" in edge:
+            h = max(mh, h0 - dy)
+            y = wy + h0 - h
+        self.root.geometry("%dx%d+%d+%d" % (w, h, x, y))
+        self.root.after_idle(self._save_geometry)
+
+    def toggle_stealth(self):
+        """Stealth mode: plain white notepad look - only Screen, the ask box, send and the answers stay."""
+        on = not self.stealth
+        self.stealth = on
+        W, K = "#ffffff", "#000000"
+        ent = self.ask_entry
+        btns = (self.b_shot, self.b_send, self.b_stealth)
+        flat = {"relief": "flat", "borderwidth": 0, "highlightthickness": 0}  # stealth: no outlines anywhere
+        if on:
+            spec = [
+                (self.root, {"bg": W}), (self.frame, {"bg": W}), (self.toolbar, {"bg": W}), (self.footer, {"bg": W}),
+                (self.apanel, {"bg": W, "highlightbackground": W, **flat}),
+                (self.answers, {"bg": W, "fg": self._sfg(), **flat}),
+                (self.asb, {"bg": W, "troughcolor": W}),
+                (ent, {"bg": W, "fg": K, "insertbackground": K, "highlightbackground": W, "highlightcolor": W, **flat}),
+                (self.b_shot, {"bg": W, "fg": K, **flat}), (self.b_send, {"bg": W, "fg": K, **flat}),
+                (self.b_stealth, {"bg": W, "fg": "#bbbbbb", "text": "\u22ef", **flat}),
+                (self.grip, {"bg": W, "fg": "#dddddd"}),
+            ]
+            self._stealth_saved = [(w, {k: w.cget(k) for k in o}) for w, o in spec]
+            self._stealth_bar = [(w, w.pack_info()) for w in self.toolbar.pack_slaves()]
+            for w, o in spec:
+                w.configure(**o)
+            for b in btns:
+                b.normal_bg = (b.base_bg, b.hover_bg)
+                b.base_bg, b.hover_bg = W, "#eeeeee"
+            for w, _ in self._stealth_bar:
+                if w not in (self.b_shot, self.b_stealth):
+                    w.pack_forget()
+            for w in (self.titlebar, self.hints, self.notice_lbl, self.ahead):
+                w.pack_forget()
+            self._stealth_enter()
+            if ent.get() == getattr(ent, "ph", None):
+                ent.delete(0, "end")
+        else:
+            self._stealth_exit()
+            for w, o in self._stealth_saved:
+                w.configure(**o)
+            for b in btns:
+                b.base_bg, b.hover_bg = b.normal_bg
+                b.configure(bg=b.base_bg)
+            for w, _ in self._stealth_bar:
+                w.pack_forget()
+            for w, info in self._stealth_bar:
+                w.pack(**info)
+            self.titlebar.pack(fill="x", before=self.toolbar)
+            self.hints.pack(fill="x", side="bottom", before=self.footer)
+            self.ahead.pack(fill="x", before=self.asb)
+            try:
+                focused = self.root.focus_get() is ent
+            except Exception:
+                focused = False
+            if not ent.get() and not focused:
+                ent.insert(0, ent.ph)
+                ent.configure(fg=C["muted"])
+            else:
+                ent.configure(fg=C["text"])
+        self._pack_panels()
+        self._config_answer_tags()
+        for tag in self.answers.tag_names():
+            if tag.startswith("copy_"):
+                self.answers.tag_configure(tag, foreground=self._sfg() if on else C["accent"])
+        if not self.answer_blocks:
+            self._show_empty_state()
+        self.grip.lift()
 
     def toggle_visibility(self):
         if self.visible:
