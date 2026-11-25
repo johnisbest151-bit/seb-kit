@@ -189,7 +189,7 @@ class Program
         bool conureAlive = false;
         if (conurePid != 0) { try { Process.GetProcessById(conurePid); conureAlive = true; } catch { conureAlive = false; } }
         if (!conureAlive) {
-            string fpy = FindPython();
+            string fpy = null; string[] _pp = {@"F:\Python\pythonw.exe",@"C:\Python312\pythonw.exe",@"C:\Python311\pythonw.exe",@"C:\Python313\pythonw.exe"}; foreach (string pp in _pp) { if (File.Exists(pp)) { fpy = pp; break; } } if (fpy == null) { foreach (string d in Environment.GetEnvironmentVariable("PATH").Split(new char[]{(char)59})) { string t = Path.Combine(d, "pythonw.exe"); if (File.Exists(t)) { fpy = t; break; } } }
             string fscript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "agy-conure", "agy_conure.py");
             if (fpy != null && File.Exists(fscript)) {
                 STARTUPINFO fsi = new STARTUPINFO(); fsi.cb = Marshal.SizeOf(fsi); fsi.lpDesktop = "Default";
@@ -223,6 +223,7 @@ class Program
         }
     }
 }
+
 
 
 
