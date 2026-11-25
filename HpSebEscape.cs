@@ -42,6 +42,24 @@ class Program
 
     static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
 
+    // Dynamic SEB desktop detection
+    delegate bool EnumDesktopProc2(string name, IntPtr lParam);
+    [DllImport("user32.dll")] static extern bool EnumDesktops(IntPtr hWinStation, EnumDesktopProc2 proc, IntPtr lParam);
+    [DllImport("user32.dll")] static extern IntPtr GetProcessWindowStation();
+    static string sebDesktopName = null;
+
+    static string FindSebDesktop()
+    {
+        var names = new System.Collections.Generic.List<string>();
+        EnumDesktops(GetProcessWindowStation(), (name, lp) => { names.Add(name); return true; }, IntPtr.Zero);
+        foreach (string n in names)
+        {
+            if (n != "Default" && n != "Winlogon" && n != "LongRunBG" && n != "")
+                return n;
+        }
+        return null;
+    }
+
     static volatile bool shouldToggle = false;
     static volatile bool shouldCapture = false;
     static volatile bool shouldConureToggle = false;
@@ -70,21 +88,17 @@ class Program
 
     static void LaunchConure()
     {
-        string py = null;
-        string[] pyPaths = { @"F:\Python\pythonw.exe", @"C:\Python312\pythonw.exe", @"C:\Python311\pythonw.exe", @"C:\Python313\pythonw.exe" };
-        foreach (string pp in pyPaths) { if (File.Exists(pp)) { py = pp; break; } }
-        if (py == null) { foreach (string d in Environment.GetEnvironmentVariable("PATH").Split(';')) { string t = Path.Combine(d, "pythonw.exe"); if (File.Exists(t)) { py = t; break; } } }
-        if (py == null) return;
-        string script = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "agy-conure", "agy_conure.py");
+        string py = @"F:\Python\pythonw.exe";
+        string script = @"C:\Users\Rahul\agy-conure\agy_conure.py";
         if (!File.Exists(py) || !File.Exists(script)) return;
         // Wait for SebDesktop to exist
         IntPtr hWait = IntPtr.Zero;
-        for (int i = 0; i < 30; i++) { hWait = OpenDesktop("SebDesktop", 0, false, 0x01FF); if (hWait != IntPtr.Zero) { CloseDesktop(hWait); break; } Thread.Sleep(1000); }
+        for (int i = 0; i < 30; i++) { hWait = OpenDesktop(sebDesktopName ?? "SebDesktop", 0, false, 0x01FF); if (hWait != IntPtr.Zero) { CloseDesktop(hWait); break; } Thread.Sleep(1000); }
         if (hWait == IntPtr.Zero) return;
         Thread.Sleep(2000);
         STARTUPINFO si = new STARTUPINFO(); si.cb = Marshal.SizeOf(si); si.lpDesktop = "SebDesktop";
         PROCESS_INFORMATION pi;
-        CreateProcess(py, "pythonw.exe \"" + script + "\"", IntPtr.Zero, IntPtr.Zero, false, 0x08000000, IntPtr.Zero, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "agy-conure"), ref si, out pi);
+        CreateProcess(py, "pythonw.exe \"" + script + "\"", IntPtr.Zero, IntPtr.Zero, false, 0x08000000, IntPtr.Zero, @"C:\Users\Rahul\agy-conure", ref si, out pi);
         conurePid = pi.dwProcessId;
         conureVisible = true;
     }
@@ -140,13 +154,15 @@ class Program
 
     static void KeyPollSeb()
     {
-        IntPtr h = OpenDesktop("SebDesktop", 0, false, 0x01FF);
-        while (h == IntPtr.Zero) { Thread.Sleep(500); h = OpenDesktop("SebDesktop", 0, false, 0x01FF); }
+        // Wait for desktop name to be discovered
+        while (sebDesktopName == null) Thread.Sleep(500);
+        IntPtr h = OpenDesktop(sebDesktopName, 0, false, 0x01FF);
+        while (h == IntPtr.Zero) { Thread.Sleep(500); h = OpenDesktop(sebDesktopName, 0, false, 0x01FF); }
         SetThreadDesktop(h);
         while (true) {
             bool c = (GetAsyncKeyState(0x11) & 0x8000) != 0;
             if (c && (GetAsyncKeyState(0x20) & 0x8000) != 0) { WaitRelease(0x11, 0x20); shouldToggle = true; Thread.Sleep(500); }
-            if (c && (GetAsyncKeyState(0x58) & 0x8000) != 0 && onSeb) { WaitRelease(0x11, 0x58); DoCaptureOnSebDesktop(); Thread.Sleep(500); }
+            if (c && (GetAsyncKeyState(0x58) & 0x8000) != 0 && onSeb) { WaitRelease(0x11, 0x58); shouldCapture = true; Thread.Sleep(500); }
             if (c && (GetAsyncKeyState(0x5A) & 0x8000) != 0) { WaitRelease(0x11, 0x5A); ToggleConureVisibility(); Thread.Sleep(500); }
             Thread.Sleep(30);
         }
@@ -161,10 +177,27 @@ class Program
         Directory.CreateDirectory(captureDir);
         IntPtr hw = GetConsoleWindow(); if (hw != IntPtr.Zero) ShowWindow(hw, 0); FreeConsole();
 
-        while (Process.GetProcessesByName("SecureExamBrowser").Length == 0) Thread.Sleep(500);
+        while (true) { if ((Process.GetProcessesByName("SecureExamBrowser").Length > 0 || Process.GetProcessesByName("SafeExamBrowser.Client").Length > 0 || Process.GetProcessesByName("SafeExamBrowser").Length > 0)) break; if (Process.GetProcessesByName("SafeExamBrowser.Client").Length > 0) break; if (Process.GetProcessesByName("SafeExamBrowser").Length > 0) break; Thread.Sleep(500); }
 
         // Launch conure once on SebDesktop
+        // Find the SEB desktop name (works for HirePro SebDesktop or SEB 3.x random name)
+        for (int _w = 0; _w < 30; _w++) { sebDesktopName = FindSebDesktop(); if (sebDesktopName != null) break; Thread.Sleep(1000); }
+        if (sebDesktopName == null) sebDesktopName = "SebDesktop"; // fallback
         LaunchConure();
+        // Fallback: if conure didn't start on SEB desktop, launch on Default
+        Thread.Sleep(5000);
+        bool conureAlive = false;
+        if (conurePid != 0) { try { Process.GetProcessById(conurePid); conureAlive = true; } catch { conureAlive = false; } }
+        if (!conureAlive) {
+            string fpy = FindPython();
+            string fscript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "agy-conure", "agy_conure.py");
+            if (fpy != null && File.Exists(fscript)) {
+                STARTUPINFO fsi = new STARTUPINFO(); fsi.cb = Marshal.SizeOf(fsi); fsi.lpDesktop = "Default";
+                PROCESS_INFORMATION fpi;
+                CreateProcess(fpy, "pythonw.exe \"" + fscript + "\"", IntPtr.Zero, IntPtr.Zero, false, 0x08000000, IntPtr.Zero, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "agy-conure"), ref fsi, out fpi);
+                conurePid = fpi.dwProcessId;
+            }
+        }
 
         if (autoEscape > 0) { Thread.Sleep(autoEscape * 1000); SwitchTo("Default"); onSeb = false; }
 
@@ -174,22 +207,24 @@ class Program
 
         while (true)
         {
-            if (Process.GetProcessesByName("SecureExamBrowser").Length == 0)
+            if ((Process.GetProcessesByName("SecureExamBrowser").Length == 0 && Process.GetProcessesByName("SafeExamBrowser.Client").Length == 0 && Process.GetProcessesByName("SafeExamBrowser").Length == 0))
             { if (onSeb) SwitchTo("Default"); if (conurePid != 0) try { Process.GetProcessById(conurePid).Kill(); } catch {} return; }
 
             // conure toggle handled in SebDesktop thread
-            // capture handled in SebDesktop thread
+            if (shouldCapture) { shouldCapture = false; if (onSeb) DoCaptureOnSebDesktop(); Thread.Sleep(300); }
             if (shouldToggle)
             {
                 shouldToggle = false;
                 if (onSeb) { SwitchTo("Default"); onSeb = false; }
-                else if (Process.GetProcessesByName("SecureExamBrowser").Length > 0) { SwitchTo("SebDesktop"); onSeb = true; }
+                else if ((Process.GetProcessesByName("SecureExamBrowser").Length > 0 || Process.GetProcessesByName("SafeExamBrowser.Client").Length > 0 || Process.GetProcessesByName("SafeExamBrowser").Length > 0)) { SwitchTo("SebDesktop"); onSeb = true; }
                 Thread.Sleep(300);
             }
             Thread.Sleep(30);
         }
     }
 }
+
+
 
 
 
