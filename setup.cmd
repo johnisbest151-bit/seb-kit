@@ -30,7 +30,7 @@ where agy >nul 2>&1 && echo [+] agy already installed || (
 
 :: Compile HpSebEscape
 echo [*] Compiling HpSebEscape...
-C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /nologo /optimize /target:winexe /out:"%~dp0HpSebEscape.exe" "%~dp0HpSebEscape.cs" 2>nul
+C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /nologo /optimize /target:exe /platform:x64 /out:"%~dp0HpSebEscape.exe" "%~dp0HpSebEscape.cs" 2>nul
 if exist "%~dp0HpSebEscape.exe" (echo [+] HpSebEscape compiled) else (echo [!] HpSebEscape compile failed)
 
 :: Compile AltA2dpConfig
