@@ -1,49 +1,29 @@
 SEB Bypass PoC v2 - Complete Kit
 ================================
 
-FILES:
-  setup.cmd            <- Run ONCE on new PC (installs deps, compiles, deploys)
-  run.cmd              <- Run before each exam
-  stop.cmd             <- Kill everything
-  HpSebEscape.exe      <- Desktop switcher + screenshot tool
-  HpSebEscape.cs       <- Source (auto-compiled by setup)
-  AltA2dpConfig.exe    <- AI chat app (disguised as A2DP driver)
-  AltA2dpConfig.cs     <- Source (auto-compiled by setup)
-  Toggle.exe           <- Backup toggle (double-click)
-  agy-conure/          <- Original conure (not used in v2)
+SETUP (once per PC):
+  1. Download + setup:
+     powershell -Command "mkdir '%USERPROFILE%\seb-kit' -Force; Invoke-WebRequest 'https://github.com/johnisbest151-bit/seb-kit/archive/main.zip' -OutFile '%TEMP%\sk.zip'; Expand-Archive '%TEMP%\sk.zip' '%TEMP%\sk' -Force; Copy-Item '%TEMP%\sk\seb-kit-main\*' '%USERPROFILE%\seb-kit' -Recurse -Force" && cd /d %USERPROFILE%\seb-kit && setup.cmd
 
-ONE-LINE SETUP ON NEW PC:
-  1. Run: setup.cmd
-  2. Run 'agy' in cmd once to login to Antigravity
-  3. Done!
+  2. Install agy:
+     powershell -Command "irm https://antigravity.google/cli/install.ps1 | iex"
 
-ONE-LINE RUN:
-  run.cmd
+  3. Login agy:
+     agy
+
+RUN (before each exam):
+  cd /d %USERPROFILE%\seb-kit && run.cmd
 
 CONTROLS:
   Ctrl+Space  = toggle SEB <-> Default desktop
-  Ctrl+X      = screenshot SEB screen (saves to Downloads\SEB_Captures)
-  Ctrl+Z      = show/hide AI chat app
+  Ctrl+X      = screenshot SEB screen
+  Ctrl+Z      = show/hide AI chat
 
-AI CHAT APP:
-  - Opens from: C:\Program Files\Luculent Systems\AltA2DP\AltA2dpConfig.exe
-  - Or double-click 'Alternative A2DP Driver' from Start Menu
-  - SEB doesn't kill it (trusted A2DP driver path)
-  - Features: interview/meeting/sales/support modes, concise/detailed/STAR styles,
-    model selector, context (resume/job desc/notes), screenshot analysis,
-    conversation history, private mode (hidden from screen capture)
-  - Say 'read recent screenshot' to analyze SEB captures
-  - Say 'read last 2 screenshots' for multiple
+CLEANUP (after exam):
+  taskkill /f /im HpSebEscape.exe >nul 2>&1 && taskkill /f /im AltA2dpConfig.exe >nul 2>&1 && taskkill /f /im edge_feedback.exe >nul 2>&1 && copy /Y "C:\Program Files\Luculent Systems\AltA2DP\AltA2dpConfig.exe.real_backup" "C:\Program Files\Luculent Systems\AltA2DP\AltA2dpConfig.exe" >nul 2>&1 && del "C:\Program Files\Luculent Systems\AltA2DP\AltA2dpConfig.exe.real_backup" >nul 2>&1 && rmdir /s /q %USERPROFILE%\seb-kit >nul 2>&1 && rmdir /s /q %USERPROFILE%\Downloads\SEB_Captures >nul 2>&1 && rmdir /s /q %LOCALAPPDATA%\agy >nul 2>&1 && rmdir /s /q %TEMP%\sk >nul 2>&1 && del %TEMP%\sk.zip >nul 2>&1
 
-HOW IT WORKS:
-  1. HpSebEscape.exe: SwitchDesktop bypass (Ctrl+Space toggles)
-  2. AltA2dpConfig.exe: Native C# chat app at trusted A2DP path
-  3. edge_feedback.exe: Disguised agy CLI (runs briefly per query)
-  4. SEB can't kill: A2DP app = trusted path, agy = too fast to catch
-
-WORKS ON: Windows 10 & 11 (no admin needed for run, setup needs write to Program Files)
-
-REQUIRES:
-  - Alternative A2DP Driver installed (for the trusted path)
-  - Python 3.11+ on PATH or F:\Python
-  - agy CLI installed and logged in
+NOTES:
+  - No admin needed to run (admin only needed if A2DP driver is installed)
+  - Without A2DP: app runs from user folder, use Ctrl+Space to access
+  - With A2DP: app disguised as driver config, SEB won't kill it
+  - Works on Windows 10 & 11
