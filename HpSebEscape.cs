@@ -44,18 +44,43 @@ class Program
     static string sebDesktopName = null;
     static string captureDir;
     static int captureCount = 0;
+    static bool debugMode = false;
+
+    static void Log(string msg)
+    {
+        if (debugMode) Console.WriteLine("[" + DateTime.Now.ToString("HH:mm:ss") + "] " + msg);
+    }
 
     static string FindSebDesktop()
     {
         var names = new System.Collections.Generic.List<string>();
         EnumDesktops(GetProcessWindowStation(), (name, lp) => { names.Add(name); return true; }, IntPtr.Zero);
+        if (debugMode) Log("Desktops found: " + string.Join(", ", names.ToArray()));
         foreach (string n in names)
             if (n != "Default" && n != "Winlogon" && n != "LongRunBG" && n != "") return n;
         return null;
     }
 
-    static void SwitchTo(string d) { IntPtr h = OpenDesktop(d, 0, false, 0x01FF); if (h != IntPtr.Zero) { SwitchDesktop(h); CloseDesktop(h); } }
-    static void WaitRelease(int k1, int k2) { while ((GetAsyncKeyState(k1) & 0x8000) != 0 || (GetAsyncKeyState(k2) & 0x8000) != 0) Thread.Sleep(10); Thread.Sleep(150); }
+    static bool IsSebRunning()
+    {
+        string[] names = { "SecureExamBrowser", "SafeExamBrowser.Client", "SafeExamBrowser", "SebWindowsBrowser" };
+        foreach (string n in names)
+            if (Process.GetProcessesByName(n).Length > 0) return true;
+        return false;
+    }
+
+    static void SwitchTo(string d)
+    {
+        IntPtr h = OpenDesktop(d, 0, false, 0x01FF);
+        if (h != IntPtr.Zero) { bool ok = SwitchDesktop(h); CloseDesktop(h); Log("SwitchTo(" + d + ") = " + ok); }
+        else Log("SwitchTo(" + d + ") FAILED - OpenDesktop returned null");
+    }
+
+    static void WaitRelease(int k1, int k2)
+    {
+        while ((GetAsyncKeyState(k1) & 0x8000) != 0 || (GetAsyncKeyState(k2) & 0x8000) != 0) Thread.Sleep(10);
+        Thread.Sleep(150);
+    }
 
     static void DoCaptureOnSebDesktop()
     {
@@ -67,15 +92,18 @@ class Program
             string path = Path.Combine(captureDir, "seb_" + DateTime.Now.ToString("yyyyMMdd_HHmmss_fff") + ".png");
             using (Bitmap bmp = Image.FromHbitmap(hb)) { bmp.Save(path, ImageFormat.Png); }
             DeleteDC(hm); DeleteObject(hb); ReleaseDC(IntPtr.Zero, hs);
-        } catch {}
+            Log("Screenshot saved: " + path);
+        } catch (Exception ex) { Log("Screenshot error: " + ex.Message); }
     }
 
     static void KeyPollDefault()
     {
-        IntPtr h = OpenDesktop("Default", 0, false, 0x01FF); if (h != IntPtr.Zero) SetThreadDesktop(h);
+        IntPtr h = OpenDesktop("Default", 0, false, 0x01FF);
+        if (h != IntPtr.Zero) SetThreadDesktop(h);
+        Log("KeyPollDefault started");
         while (true) {
             bool c = (GetAsyncKeyState(0x11) & 0x8000) != 0;
-            if (c && (GetAsyncKeyState(0x20) & 0x8000) != 0) { WaitRelease(0x11, 0x20); shouldToggle = true; Thread.Sleep(500); }
+            if (c && (GetAsyncKeyState(0x20) & 0x8000) != 0) { WaitRelease(0x11, 0x20); Log("Ctrl+Space from Default"); shouldToggle = true; Thread.Sleep(500); }
             Thread.Sleep(30);
         }
     }
@@ -83,9 +111,28 @@ class Program
     static void KeyPollSeb()
     {
         while (sebDesktopName == null) Thread.Sleep(500);
-        IntPtr h = OpenDesktop(sebDesktopName, 0, false, 0x01FF);
-        while (h == IntPtr.Zero) { Thread.Sleep(500); h = OpenDesktop(sebDesktopName, 0, false, 0x01FF); }
+        IntPtr h = IntPtr.Zero;
+        for (int i = 0; i < 120; i++) { h = OpenDesktop(sebDesktopName, 0, false, 0x01FF); if (h != IntPtr.Zero) break; Thread.Sleep(500); }
+        if (h == IntPtr.Zero) { Log("KeyPollSeb FAILED - could not open " + sebDesktopName); return; }
         SetThreadDesktop(h);
+        Log("KeyPollSeb started on " + sebDesktopName);
+        while (true) {
+            bool c = (GetAsyncKeyState(0x11) & 0x8000) != 0;
+            if (c && (GetAsyncKeyState(0x20) & 0x8000) != 0) { WaitRelease(0x11, 0x20); Log("Ctrl+Space from SEB"); shouldToggle = true; Thread.Sleep(500); }
+            if (c && (GetAsyncKeyState(0x58) & 0x8000) != 0 && onSeb) { WaitRelease(0x11, 0x58); Log("Ctrl+X from SEB"); shouldCapture = true; Thread.Sleep(500); }
+            Thread.Sleep(30);
+        }
+    }
+
+    // Fallback: also poll on hardcoded "SebDesktop" if dynamic name is different
+    static void KeyPollSebFallback()
+    {
+        if (sebDesktopName == "SebDesktop") return; // already covered
+        IntPtr h = IntPtr.Zero;
+        for (int i = 0; i < 120; i++) { h = OpenDesktop("SebDesktop", 0, false, 0x01FF); if (h != IntPtr.Zero) break; Thread.Sleep(500); }
+        if (h == IntPtr.Zero) return;
+        SetThreadDesktop(h);
+        Log("KeyPollSebFallback started on SebDesktop");
         while (true) {
             bool c = (GetAsyncKeyState(0x11) & 0x8000) != 0;
             if (c && (GetAsyncKeyState(0x20) & 0x8000) != 0) { WaitRelease(0x11, 0x20); shouldToggle = true; Thread.Sleep(500); }
@@ -94,33 +141,70 @@ class Program
         }
     }
 
+    // Keep re-scanning for new desktops in case SEB creates one later
+    static void DesktopWatcher()
+    {
+        while (true) {
+            Thread.Sleep(2000);
+            string found = FindSebDesktop();
+            if (found != null && sebDesktopName == null) {
+                sebDesktopName = found;
+                Log("DesktopWatcher found SEB desktop: " + found);
+            }
+        }
+    }
+
     static void Main(string[] args)
     {
         SetProcessDPIAware();
         int autoEscape = 0;
-        if (args.Length > 0) int.TryParse(args[0], out autoEscape);
+
+        // Parse args: "0" = normal, "debug" = show console
+        foreach (string a in args) {
+            if (a == "debug") debugMode = true;
+            else int.TryParse(a, out autoEscape);
+        }
+
         captureDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "SEB_Captures");
         Directory.CreateDirectory(captureDir);
-        IntPtr hw = GetConsoleWindow(); if (hw != IntPtr.Zero) ShowWindow(hw, 0); FreeConsole();
 
-        // Start hotkey polling IMMEDIATELY so Ctrl+Space works from second 1
+        // Hide console window (same as original v1)
+        if (!debugMode) {
+            IntPtr hw = GetConsoleWindow(); if (hw != IntPtr.Zero) ShowWindow(hw, 0); FreeConsole();
+        }
+
+        Log("SEB Kit started. Waiting for SEB...");
+
+        // Start hotkey polling on Default desktop IMMEDIATELY
         new Thread(KeyPollDefault) { IsBackground = true }.Start();
 
-        // Wait for SEB process (any variant)
-        while (true) {
-            if (Process.GetProcessesByName("SecureExamBrowser").Length > 0) break;
-            if (Process.GetProcessesByName("SafeExamBrowser.Client").Length > 0) break;
-            if (Process.GetProcessesByName("SafeExamBrowser").Length > 0) break;
-            // Also check if SEB desktop appeared
-            string d = FindSebDesktop(); if (d != null) break;
+        // Start desktop watcher
+        new Thread(DesktopWatcher) { IsBackground = true }.Start();
+
+        // Wait for SEB process OR SEB desktop (whichever comes first)
+        for (int i = 0; i < 240; i++) {
+            if (IsSebRunning()) { Log("SEB process detected"); break; }
+            string d = FindSebDesktop();
+            if (d != null) { sebDesktopName = d; Log("SEB desktop detected: " + d); break; }
             Thread.Sleep(500);
         }
 
-        // Find SEB desktop
-        for (int i = 0; i < 30; i++) { sebDesktopName = FindSebDesktop(); if (sebDesktopName != null) break; Thread.Sleep(1000); }
+        // Find SEB desktop name if not already found
+        if (sebDesktopName == null) {
+            for (int i = 0; i < 60; i++) {
+                sebDesktopName = FindSebDesktop();
+                if (sebDesktopName != null) break;
+                Thread.Sleep(1000);
+            }
+        }
         if (sebDesktopName == null) sebDesktopName = "SebDesktop";
+        Log("Using SEB desktop: " + sebDesktopName);
 
         onSeb = true;
+
+        // Start SEB desktop key polling
+        new Thread(KeyPollSeb) { IsBackground = true }.Start();
+        new Thread(KeyPollSebFallback) { IsBackground = true }.Start();
 
         // Launch AltA2dpConfig on Default desktop
         string launcher = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AltA2dpConfig.exe");
@@ -130,20 +214,20 @@ class Program
             STARTUPINFO si = new STARTUPINFO(); si.cb = Marshal.SizeOf(si); si.lpDesktop = "Default";
             PROCESS_INFORMATION pi;
             CreateProcess(launcher, null, IntPtr.Zero, IntPtr.Zero, false, 0, IntPtr.Zero, Path.GetDirectoryName(launcher), ref si, out pi);
+            Log("Launched AltA2dpConfig PID " + pi.dwProcessId);
         }
+        else Log("AltA2dpConfig not found at " + launcher);
 
         if (autoEscape > 0) { Thread.Sleep(autoEscape * 1000); SwitchTo("Default"); onSeb = false; }
 
-        new Thread(KeyPollSeb) { IsBackground = true }.Start();
+        Log("Main loop started. Ctrl+Space=toggle, Ctrl+X=screenshot");
 
-        // Main loop
+        // Main loop (same as original v1)
         while (true)
         {
-            if (Process.GetProcessesByName("SecureExamBrowser").Length == 0 &&
-                Process.GetProcessesByName("SafeExamBrowser.Client").Length == 0 &&
-                Process.GetProcessesByName("SafeExamBrowser").Length == 0 &&
-                FindSebDesktop() == null)
-            { if (onSeb) SwitchTo("Default"); return; }
+            // Check if SEB is still running
+            if (!IsSebRunning() && FindSebDesktop() == null)
+            { if (onSeb) SwitchTo("Default"); Log("SEB closed, exiting"); return; }
 
             if (shouldCapture) { shouldCapture = false; if (onSeb) DoCaptureOnSebDesktop(); Thread.Sleep(300); }
             if (shouldToggle)
