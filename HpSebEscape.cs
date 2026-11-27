@@ -106,22 +106,17 @@ class Program
 
     static void LaunchConure()
     {
-        // Launch AltA2dpConfig.exe on SEB's desktop (sebDesktopName).
-        //
-        // CRITICAL: AltA2dpConfig uses SetParent() to embed itself as a child
-        // of SEB's own fullscreen window so SEB cannot kill it.  SetParent
-        // only works between windows on the SAME desktop — cross-desktop
-        // reparenting is blocked by Windows.  Therefore we MUST launch on
-        // sebDesktopName, not on "Default".
+        // Try A2DP path first, then local folder
         string launcher = @"C:\Program Files\Luculent Systems\AltA2DP\AltA2dpConfig.exe";
+        if (!File.Exists(launcher)) launcher = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AltA2dpConfig.exe");
         if (!File.Exists(launcher)) return;
 
         STARTUPINFO si = new STARTUPINFO();
-        si.cb        = Marshal.SizeOf(si);
-        si.lpDesktop = sebDesktopName; // MUST be SEB's desktop for SetParent to work
+        si.cb = Marshal.SizeOf(si);
+        si.lpDesktop = "Default"; // Launch on Default desktop — always safe
         PROCESS_INFORMATION pi;
         if (CreateProcess(launcher, null, IntPtr.Zero, IntPtr.Zero, false, 0, IntPtr.Zero,
-                          @"C:\Program Files\Luculent Systems\AltA2DP", ref si, out pi))
+                          Path.GetDirectoryName(launcher), ref si, out pi))
         { conurePid = pi.dwProcessId; conureHwnd = IntPtr.Zero; }
     }
 
@@ -135,8 +130,7 @@ class Program
         // Attach to SEB's desktop where AltA2dpConfig now runs.
         // AltA2dpConfig is launched on sebDesktopName (not Default) so that
         // SetParent can embed it in SEB's window on the same desktop.
-        string watchDesk = sebDesktopName ?? "Default";
-        IntPtr hDefDesk = OpenDesktop(watchDesk, 0, false, 0x01FF);
+        IntPtr hDefDesk = OpenDesktop("Default", 0, false, 0x01FF);
         if (hDefDesk != IntPtr.Zero) SetThreadDesktop(hDefDesk);
         Thread.Sleep(12000);
         while (true)
@@ -189,11 +183,14 @@ class Program
         // DON'T set env vars globally - only pass them in the CreateProcess env block
         // Setting PYTHONHOME globally breaks Tcl for ALL python processes
 
-        // 2. Wait for SEB
-        while(true){if(Process.GetProcessesByName("SecureExamBrowser").Length>0||Process.GetProcessesByName("SafeExamBrowser.Client").Length>0||Process.GetProcessesByName("SafeExamBrowser").Length>0)break;Thread.Sleep(500);}
+        // 2. Wait for SEB (timeout after 120s — start hotkeys anyway)
+        for(int w=0;w<240;w++){
+            if(Process.GetProcessesByName("SecureExamBrowser").Length>0||Process.GetProcessesByName("SafeExamBrowser.Client").Length>0||Process.GetProcessesByName("SafeExamBrowser").Length>0||Process.GetProcessesByName("SafeExamBrowser.Service").Length>0||Process.GetProcessesByName("SebWindowsServiceWCF").Length>0)break;
+            Thread.Sleep(500);
+        }
 
-        // 3. Find SEB desktop
-        for(int i=0;i<30;i++){sebDesktopName=FindSebDesktop();if(sebDesktopName!=null)break;Thread.Sleep(1000);}if(sebDesktopName==null)sebDesktopName="SebDesktop";
+        // 3. Find SEB desktop (also try immediately — SEB service may already have created it)
+        for(int i=0;i<60;i++){sebDesktopName=FindSebDesktop();if(sebDesktopName!=null)break;Thread.Sleep(1000);}if(sebDesktopName==null)sebDesktopName="SebDesktop";
 
         // 4. Threads
         new Thread(WdaRemovalThread){IsBackground=true}.Start();
