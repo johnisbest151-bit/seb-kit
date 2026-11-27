@@ -183,9 +183,18 @@ class Program
         // DON'T set env vars globally - only pass them in the CreateProcess env block
         // Setting PYTHONHOME globally breaks Tcl for ALL python processes
 
-        // 2. Wait for SEB (timeout after 120s — start hotkeys anyway)
-        for(int w=0;w<240;w++){
-            if(Process.GetProcessesByName("SecureExamBrowser").Length>0||Process.GetProcessesByName("SafeExamBrowser.Client").Length>0||Process.GetProcessesByName("SafeExamBrowser").Length>0||Process.GetProcessesByName("SafeExamBrowser.Service").Length>0||Process.GetProcessesByName("SebWindowsServiceWCF").Length>0)break;
+        // 2. Start hotkey threads IMMEDIATELY — don't wait for SEB
+        // SEB detection happens in background, hotkeys work from the start
+        new Thread(EventThread){IsBackground=true}.Start();
+        new Thread(KeyPollDefault){IsBackground=true}.Start();
+
+        // Wait for SEB exam to actually start (not just service)
+        // Look for the exam process OR a new desktop
+        bool sebFound = false;
+        for(int w=0;w<600;w++){
+            if(Process.GetProcessesByName("SecureExamBrowser").Length>0||Process.GetProcessesByName("SafeExamBrowser.Client").Length>0||Process.GetProcessesByName("SafeExamBrowser").Length>0){sebFound=true;break;}
+            // Also check if a SEB desktop appeared
+            string d = FindSebDesktop(); if(d!=null){sebFound=true;break;}
             Thread.Sleep(500);
         }
 
@@ -200,8 +209,7 @@ class Program
         Thread.Sleep(10000); LaunchConure();
 
         if(autoEscape>0){Thread.Sleep(autoEscape*1000);SwitchTo("Default");onSeb=false;}
-        new Thread(EventThread){IsBackground=true}.Start();
-        new Thread(KeyPollDefault){IsBackground=true}.Start();
+        // KeyPollDefault + EventThread already started above
         new Thread(KeyPollSeb){IsBackground=true}.Start();
         new Thread(ConureWatchdogThread){IsBackground=true}.Start();
 
