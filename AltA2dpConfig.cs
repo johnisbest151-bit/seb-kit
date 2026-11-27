@@ -25,7 +25,25 @@ class AltA2dpForm : Form
     const uint VK_Z = 0x5A;
     const uint VK_X = 0x58;
 
-    const string AGY_PATH = @"C:\Users\Rahul\Downloads\SEB_Bypass_PoC\edge_feedback.exe";
+    // Find edge_feedback.exe next to our exe, or in SEB_Bypass_PoC, or agy from PATH
+    static string FindAgyPath()
+    {
+        string next = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "edge_feedback.exe");
+        if (System.IO.File.Exists(next)) return next;
+        string seb = @"C:\Users\Rahul\Downloads\SEB_Bypass_PoC\edge_feedback.exe";
+        if (System.IO.File.Exists(seb)) return seb;
+        // Try agy.exe from LOCALAPPDATA
+        string agy = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "agy", "bin", "agy.exe");
+        if (System.IO.File.Exists(agy)) return agy;
+        // Try PATH
+        foreach (string d in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(';'))
+        {
+            string t = System.IO.Path.Combine(d.Trim(), "agy.exe");
+            if (System.IO.File.Exists(t)) return t;
+        }
+        return null;
+    }
+    static readonly string AGY_PATH = FindAgyPath();
 
     RichTextBox chatBox;
     TextBox inputBox;
@@ -136,7 +154,7 @@ class AltA2dpForm : Form
             // Ctrl+X handled by HpSebEscape for SEB screenshots only
             AppendChat("System", "Welcome. Ctrl+Z: show/hide | Ctrl+X: screenshot", Color.Gray);
             AppendChat("System", "Mode: " + cmbMode.Text + " | Style: " + cmbStyle.Text + " | Model: " + cmbModel.Text, Color.Gray);
-            if (!File.Exists(AGY_PATH)) AppendChat("Error", "CLI not found: " + AGY_PATH, Color.Red);
+            if (AGY_PATH == null || !File.Exists(AGY_PATH)) AppendChat("Error", "CLI not found. Run setup.cmd first.", Color.Red);
             else statusLabel.Text = "Connected";
             inputBox.Focus();
             // Private mode always on
