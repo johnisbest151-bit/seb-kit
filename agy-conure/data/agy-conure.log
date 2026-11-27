@@ -1,0 +1,22 @@
+[08:51:55] starting agy-conure python 3.14.2
+[08:51:56] warming agy gemini-3.8-flash-low
+[08:52:00] models: gemini-4-hydrogen-high, gemini-4-hydrogen-xhigh, gemini-4-hydrogen-medium, gemini-4-hydrogen-low, gemini-3.8-flash-high, gemini-3.8-flash-medium, gemini-3.8-flash-low, claude-sonnet-4-6, claude-opus-4-6-thinking, gpt-oss-120b-medium
+[08:53:01] warming agy gemini-3.8-flash-low
+[08:53:05] answer done in 3.8s (224 chars)
+[08:54:15] warming agy gemini-3.8-flash-low
+[09:00:44] starting agy-conure python 3.14.2
+[09:00:44] warming agy gemini-3.8-flash-low
+[09:00:49] models: gemini-4-hydrogen-high, gemini-4-hydrogen-xhigh, gemini-4-hydrogen-medium, gemini-4-hydrogen-low, gemini-3.8-flash-high, gemini-3.8-flash-medium, gemini-3.8-flash-low, claude-sonnet-4-6, claude-opus-4-6-thinking, gpt-oss-120b-medium
+[09:02:07] starting agy-conure python 3.14.2
+[09:02:07] warming agy gemini-3.8-flash-low
+[09:02:11] models: gemini-4-hydrogen-high, gemini-4-hydrogen-xhigh, gemini-4-hydrogen-medium, gemini-4-hydrogen-low, gemini-3.8-flash-high, gemini-3.8-flash-medium, gemini-3.8-flash-low, claude-sonnet-4-6, claude-opus-4-6-thinking, gpt-oss-120b-medium
+[09:04:12] starting agy-conure python 3.14.2
+[09:04:12] warming agy gemini-3.8-flash-low
+[09:04:16] models: gemini-4-hydrogen-high, gemini-4-hydrogen-xhigh, gemini-4-hydrogen-medium, gemini-4-hydrogen-low, gemini-3.8-flash-high, gemini-3.8-flash-medium, gemini-3.8-flash-low, claude-sonnet-4-6, claude-opus-4-6-thinking, gpt-oss-120b-medium
+[09:07:19] starting agy-conure python 3.14.2
+[09:07:19] warming agy gemini-3.8-flash-low
+[09:07:23] models: gemini-4-hydrogen-high, gemini-4-hydrogen-xhigh, gemini-4-hydrogen-medium, gemini-4-hydrogen-low, gemini-3.8-flash-high, gemini-3.8-flash-medium, gemini-3.8-flash-low, claude-sonnet-4-6, claude-opus-4-6-thinking, gpt-oss-120b-medium
+[09:08:05] starting agy-conure python 3.14.2
+[09:08:06] warming agy gemini-3.8-flash-low
+[09:08:07] already running
+[09:08:10] models: gemini-4-hydrogen-high, gemini-4-hydrogen-xhigh, gemini-4-hydrogen-medium, gemini-4-hydrogen-low, gemini-3.8-flash-high, gemini-3.8-flash-medium, gemini-3.8-flash-low, claude-sonnet-4-6, claude-opus-4-6-thinking, gpt-oss-120b-medium

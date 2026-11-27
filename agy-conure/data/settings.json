@@ -1,0 +1,73 @@
+{
+  "overlay": {
+    "width": 540,
+    "height": 720,
+    "x": 266,
+    "y": 134,
+    "opacity": 0.97,
+    "privateMode": true,
+    "clickThrough": false,
+    "fontScale": 1.0,
+    "showTranscript": true,
+    "transcriptHeight": 190
+  },
+  "hotkeys": {
+    "toggleVisibility": "ctrl+alt+h",
+    "answer": "ctrl+alt+enter",
+    "screenshotAnswer": "ctrl+alt+s",
+    "clear": "ctrl+alt+c",
+    "regenerate": "ctrl+alt+r",
+    "toggleClickThrough": "ctrl+alt+m",
+    "togglePrivate": "ctrl+alt+p",
+    "toggleListening": "ctrl+alt+space",
+    "toggleAutoAnswer": "ctrl+alt+a",
+    "moveLeft": "ctrl+alt+left",
+    "moveRight": "ctrl+alt+right",
+    "moveUp": "ctrl+alt+up",
+    "moveDown": "ctrl+alt+down",
+    "growOverlay": "ctrl+alt+=",
+    "shrinkOverlay": "ctrl+alt+-",
+    "scrollUp": "ctrl+alt+page up",
+    "scrollDown": "ctrl+alt+page down"
+  },
+  "audio": {
+    "captureSystem": true,
+    "captureMic": true,
+    "micDevice": "default"
+  },
+  "stt": {
+    "punctuation": true,
+    "numThreads": 2,
+    "endpointSilenceMs": 800
+  },
+  "llm": {
+    "model": "gemini-3.8-flash-low",
+    "warm": true
+  },
+  "assistant": {
+    "autoAnswer": true,
+    "answerStyle": "concise",
+    "mode": "interview",
+    "responseLanguage": "auto",
+    "contextWindowUtterances": 8,
+    "historyTurns": 2,
+    "customInstructions": "",
+    "includeTranscriptContext": true,
+    "minQuestionWords": 3
+  },
+  "context": {
+    "resumeText": "",
+    "jobDescription": "",
+    "notes": "",
+    "documents": []
+  },
+  "session": {
+    "saveTranscripts": true,
+    "saveDir": "",
+    "autoNotes": true
+  },
+  "general": {
+    "launchAtLogin": false,
+    "showTray": true
+  }
+}

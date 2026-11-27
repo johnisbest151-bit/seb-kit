@@ -1,6 +1,6 @@
 @echo off
-taskkill /f /im HpSebEscape.exe >nul 2>&1
-taskkill /f /im pythonw.exe >nul 2>&1
-taskkill /f /im SecureExamBrowser.exe >nul 2>&1
+taskkill /F /IM HpSebEscape.exe 2>nul
+taskkill /F /IM AltA2dpConfig.exe 2>nul
+taskkill /F /IM edge_feedback.exe 2>nul
+taskkill /F /IM pythonw.exe 2>nul
 echo All stopped.
-pause
